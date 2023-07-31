@@ -2,66 +2,97 @@
  * Service for Scanning Files
  */
 
-const Joi = require("joi");
 const logger = require("../common/logger");
 const helper = require("../common/helper");
+const Kafka = require("no-kafka");
+const healthcheck = require("topcoder-healthcheck-dropin");
+const ScannerService = require("./services/ScannerService");
+const config = require("config"); 
 
-/**
- * Process Scan request event
- * @param {Object} message the message
- */
-async function processScan(message, downloadedFile = null, maxRetries = 3) {
-  message.timestamp = new Date().toISOString();
-  message.payload.status = "scanned";
+// create consumer
+const options = {
+    connectionString: config.KAFKA_URL,
+    groupId: config.KAFKA_GROUP_ID,
+    };
+    if (config.KAFKA_CLIENT_CERT && config.KAFKA_CLIENT_CERT_KEY) {
+    options.ssl = {
+        cert: config.KAFKA_CLIENT_CERT,
+        key: config.KAFKA_CLIENT_CERT_KEY,
+    };
+    }
+    const consumer = new Kafka.GroupConsumer(options);
 
-  if (downloadedFile == null) {
-    downloadedFile = await helper.downloadFile(message.payload.url);
-  }
+    const topics = [config.AVSCAN_TOPIC];
 
-  // Scan the file using ClamAV
-  const [isZipBomb, errorCode, errorMessage] = helper.isZipBomb(downloadedFile);
-  if (isZipBomb) {
-    message.payload.isInfected = true;
-    logger.warn(
-      `File at ${message.payload.url} is a ZipBomb. ${errorCode}: ${errorMessage}`
+// data handler
+const dataHandler = (messageSet, topic, partition) =>
+  Promise.each(messageSet, async (m) => {
+    const message = m.message.value.toString("utf8");
+    logger.info(
+      `Handle Kafka event message; Topic: ${topic}; Partition: ${partition}; Offset: ${m.offset}; Message: ${message}.`
     );
-    helper.postToBusAPI(message);
-    return message;
+    let messageJSON;
+    try {
+      messageJSON = JSON.parse(message);
+    } catch (e) {
+      logger.error("Invalid message JSON.");
+      logger.error(e);
+      // ignore the message
+      return;
+    }
+
+    // Check if the topic in the payload is same as the Kafka topic
+    if (messageJSON.topic !== topic) {
+      logger.error(
+        `The message topic ${messageJSON.topic} doesn't match the Kafka topic ${topic}.`
+      );
+      // ignore the message
+      return;
+    }
+
+    try {
+      await ScannerService.processScan(messageJSON);
+      consumer.commitOffset({ topic, partition, offset: m.offset });
+    } catch (err) {
+      logger.error(err);
+
+      // commit offset regardless of errors
+      consumer.commitOffset({ topic, partition, offset: m.offset });
+    }
+});
+
+/*
+ * Function to check if the Kafka connection is alive
+ */
+function check() {
+    if (
+      !consumer.client.initialBrokers &&
+      !consumer.client.initialBrokers.length
+    ) {
+      return false;
+    }
+    let connected = true;
+    consumer.client.initialBrokers.forEach((conn) => {
+      logger.debug(`url ${conn.server()} - connected=${conn.connected}`);
+      connected = conn.connected & connected;
+    });
+    return connected;
   }
+  
+  consumer
+    .init([
+      {
+        subscriptions: topics,
+        handler: dataHandler,
+      },
+    ])
+    // consume configured topics
+    .then(() => {
+      logger.info("Initialized.......");
+      healthcheck.init([check]);
+      logger.info("Adding topics successfully.......");
+      logger.info(topics);
+      logger.info("Kick Start.......");
+    });
 
-  const isInfected = await helper.scanWithClamAV(downloadedFile);
 
-  // Update Scanning results
-  message.payload.isInfected = isInfected;
-
-  helper.postToBusAPI(message);
-
-  return message;
-}
-
-processScan.schema = {
-  message: Joi.object()
-    .keys({
-      topic: Joi.string().required(),
-      originator: Joi.string().required(),
-      timestamp: Joi.date().required(),
-      "mime-type": Joi.string().required(),
-      payload: Joi.object()
-        .keys({
-          url: Joi.string().required(),
-          fileName: Joi.string().required(),
-          status: Joi.string().required(),
-          uploadType: Joi.string().required()
-        })
-        .unknown(true)
-        .required(),
-    })
-    .required(),
-};
-
-// Exports
-module.exports = {
-  processScan,
-};
-
-logger.buildService(module.exports, "ScannerService");
