@@ -26,6 +26,7 @@ module.exports = {
     // AUTH0_CLIENT_SECRET: process.env.AUTH0_CLIENT_SECRET,
     
     SUBMISSION_API_URL: process.env.SUBMISSION_API_URL || 'http://localhost:3010/api/v5',
+    AV_Scan: 'Virus Scan',
 
     // AWS related parameters
     aws: {

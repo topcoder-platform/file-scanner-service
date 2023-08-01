@@ -5,12 +5,14 @@
 const Joi = require("joi");
 const logger = require("../common/logger");
 const helper = require("../common/helper");
+const config = require("../../config");
+
 
 /**
  * Process Scan request event
  * @param {Object} message the message
  */
-async function processScan(message, downloadedFile = null, maxRetries = 3) {
+async function processScan(message, downloadedFile = null) {
   message.timestamp = new Date().toISOString();
   message.payload.status = "scanned";
 
@@ -25,7 +27,7 @@ async function processScan(message, downloadedFile = null, maxRetries = 3) {
     logger.warn(
       `File at ${message.payload.url} is a ZipBomb. ${errorCode}: ${errorMessage}`
     );
-    helper.postToBusAPI(message);
+    await helper.postToBusAPI(message);
     return message;
   }
 
@@ -41,30 +43,30 @@ async function processScan(message, downloadedFile = null, maxRetries = 3) {
   // Check if the file is clean or infected
   if (!isInfected) {
     // If the file is clean, move it to the clean bucket based on the upload type
-    yield helper.moveFile(config.get('aws.DMZ_BUCKET'), fileName, destinationBucket, fileName);  
+    await helper.moveFile(config.get("aws.DMZ_BUCKET"), fileName, destinationBucket, fileName);  
     const movedS3Obj = `https://s3.amazonaws.com/${destinationBucket}/${fileName}`
     logger.debug(`moved file: ${JSON.stringify(movedS3Obj)}`)
     if(uploadType === "submission"){
-        logger.info('Update Submission final location using Submission API')
-        yield helper.reqToSubmissionAPI('PATCH', `${config.SUBMISSION_API_URL}/submissions/${message.payload.submissionId}`,
+        logger.info("Update Submission final location using Submission API")
+        await helper.reqToSubmissionAPI("PATCH", `${config.SUBMISSION_API_URL}/submissions/${message.payload.submissionId}`,
             { url: movedS3Obj })
 
-        logger.info('Create review using Submission API')
-        yield helper.reqToSubmissionAPI('POST', `${config.SUBMISSION_API_URL}/reviews`, {
+        logger.info("Create review using Submission API")
+        await helper.reqToSubmissionAPI("POST", `${config.SUBMISSION_API_URL}/reviews`, {
             score: message.payload.isInfected ? 0 : 100,
             reviewerId: uuid(), 
             submissionId: message.payload.submissionId,
             scoreCardId: REVIEW_SCORECARDID,
-            typeId: yield helper.getreviewTypeId(AV_SCAN)
+            typeId: await helper.getreviewTypeId(config.AV_SCAN)
         })
     }
   }else{
     // If the file is infected, move it to the quarantine bucket 
     const quarantineBucket = config.uploadTypes[uploadType].quarantineBucket;
-    yield helper.moveFile(config.get('aws.DMZ_BUCKET'), fileName, quarantineBucket, fileName);
+    await helper.moveFile(config.get("aws.DMZ_BUCKET"), fileName, quarantineBucket, fileName);
   }
   
-  helper.postToBusAPI(message);
+  await helper.postToBusAPI(message);
 
   return message;
 }
