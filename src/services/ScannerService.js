@@ -5,7 +5,7 @@
 const Joi = require("joi");
 const logger = require("../common/logger");
 const helper = require("../common/helper");
-const config = require("../../config");
+const config = require("config");
 
 
 /**
