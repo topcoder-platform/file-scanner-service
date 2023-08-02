@@ -56,7 +56,7 @@ async function processScan(message, downloadedFile = null) {
             score: message.payload.isInfected ? 0 : 100,
             reviewerId: uuid(), 
             submissionId: message.payload.submissionId,
-            scoreCardId: REVIEW_SCORECARDID,
+            scoreCardId: config.SCORECARD_ID,
             typeId: await helper.getreviewTypeId(config.AV_SCAN)
         })
     }
