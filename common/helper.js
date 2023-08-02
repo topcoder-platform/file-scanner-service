@@ -134,7 +134,7 @@ function scanWithClamAV(file) {
  * @param {String} targetBucket the target bucket
  * @param {String} targetKey the target key
  */
-function * moveFile (sourceBucket, sourceKey, targetBucket, targetKey) {
+async function moveFile (sourceBucket, sourceKey, targetBucket, targetKey) {
     yield s3p.copyObjectAsync({ Bucket: targetBucket, CopySource: `/${sourceBucket}/${sourceKey}`, Key: targetKey })
     yield s3p.deleteObjectAsync({ Bucket: sourceBucket, Key: sourceKey })
 }
@@ -156,7 +156,7 @@ async function getM2Mtoken() {
  * @param{Object} reqBody Body of the request
  * @returns {Promise}
  */
-function * reqToSubmissionAPI (reqType, path, reqBody) {
+async function reqToSubmissionAPI (reqType, path, reqBody) {
     // Token necessary to send request to Submission API
     const token = yield getM2Mtoken()
     if (reqType === 'POST') {
@@ -173,7 +173,7 @@ function * reqToSubmissionAPI (reqType, path, reqBody) {
  * @param{String} reviewTypeName Name of the reviewType
  * @returns{String} reviewTypeId
  */
-function * getreviewTypeId (reviewTypeName) {
+async function getreviewTypeId (reviewTypeName) {
     if (reviewTypes[reviewTypeName]) {
       return reviewTypes[reviewTypeName]
     } else {
