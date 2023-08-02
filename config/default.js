@@ -19,11 +19,11 @@ module.exports = {
     CLAMAV_HOST: process.env.CLAMAV_HOST || 'localhost',
     CLAMAV_PORT: process.env.CLAMAV_PORT || 3310,
     BUSAPI_EVENTS_URL: process.env.BUSAPI_EVENTS_URL || 'https://api.topcoder-dev.com/v5/bus/events',
-    // AUTH0_URL: process.env.AUTH0_URL, // Auth0 credentials for Submission scoring processor
-    // AUTH0_AUDIENCE: process.env.AUTH0_AUDIENCE || 'https://www.topcoder.com',
-    // TOKEN_CACHE_TIME: process.env.TOKEN_CACHE_TIME,
-    // AUTH0_CLIENT_ID: process.env.AUTH0_CLIENT_ID,
-    // AUTH0_CLIENT_SECRET: process.env.AUTH0_CLIENT_SECRET,
+    AUTH0_URL: process.env.AUTH0_URL, 
+    AUTH0_AUDIENCE: process.env.AUTH0_AUDIENCE || 'https://m2m.topcoder-dev.com/',
+    TOKEN_CACHE_TIME: process.env.TOKEN_CACHE_TIME,
+    AUTH0_CLIENT_ID: process.env.AUTH0_CLIENT_ID,
+    AUTH0_CLIENT_SECRET: process.env.AUTH0_CLIENT_SECRET,
     
     SUBMISSION_API_URL: process.env.SUBMISSION_API_URL || 'http://localhost:3010/api/v5',
     AV_SCAN: 'Virus Scan',
