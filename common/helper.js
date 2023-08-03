@@ -135,8 +135,8 @@ function scanWithClamAV(file) {
  * @param {String} targetKey the target key
  */
 async function moveFile (sourceBucket, sourceKey, targetBucket, targetKey) {
-    yield s3p.copyObjectAsync({ Bucket: targetBucket, CopySource: `/${sourceBucket}/${sourceKey}`, Key: targetKey })
-    yield s3p.deleteObjectAsync({ Bucket: sourceBucket, Key: sourceKey })
+    await s3p.copyObjectAsync({ Bucket: targetBucket, CopySource: `/${sourceBucket}/${sourceKey}`, Key: targetKey })
+    await s3p.deleteObjectAsync({ Bucket: sourceBucket, Key: sourceKey })
 }
 
 /* Function to get M2M token
@@ -158,13 +158,13 @@ async function getM2Mtoken() {
  */
 async function reqToSubmissionAPI (reqType, path, reqBody) {
     // Token necessary to send request to Submission API
-    const token = yield getM2Mtoken()
+    const token = await getM2Mtoken()
     if (reqType === 'POST') {
-      yield axios.post(path, reqBody, { headers: { 'Authorization': `Bearer ${token}` } })
+      await axios.post(path, reqBody, { headers: { 'Authorization': `Bearer ${token}` } })
     } else if (reqType === 'PATCH') {
-      yield axios.patch(path, reqBody, { headers: { 'Authorization': `Bearer ${token}` } })
+      await axios.patch(path, reqBody, { headers: { 'Authorization': `Bearer ${token}` } })
     } else if (reqType === 'GET') {
-      return yield axios.get(path, { headers: { 'Authorization': `Bearer ${token}` } })
+      return await axios.get(path, { headers: { 'Authorization': `Bearer ${token}` } })
     }
 }
 
@@ -177,7 +177,7 @@ async function getreviewTypeId (reviewTypeName) {
     if (reviewTypes[reviewTypeName]) {
       return reviewTypes[reviewTypeName]
     } else {
-      const response = yield reqToSubmissionAPI('GET',
+      const response = await reqToSubmissionAPI('GET',
         `${config.SUBMISSION_API_URL}/reviewTypes?name=${reviewTypeName}`, {})
       if (response.data.length !== 0) {
         reviewTypes[reviewTypeName] = response.data[0].id
