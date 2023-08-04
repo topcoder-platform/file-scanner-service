@@ -2,71 +2,73 @@
  * Service for Scanning Submissions
  */
 
-const Joi = require("joi");
-const logger = require("../common/logger");
-const helper = require("../common/helper");
+const Joi = require('joi')
+const logger = require('../common/logger')
+const helper = require('../common/helper')
+const config = require('config')
+const { v4: uuid } = require('uuid')
 
 /**
  * Process Scan request event
  * @param {Object} message the message
  */
-async function processScan(message, downloadedFile = null, maxRetries = 3) {
-  message.timestamp = new Date().toISOString();
-  message.payload.status = "scanned";
+async function processScan (message, downloadedFile = null) {
+  message.timestamp = new Date().toISOString()
+  message.payload.status = 'scanned'
 
   if (downloadedFile == null) {
-    downloadedFile = await helper.downloadFile(message.payload.url);
+    downloadedFile = await helper.downloadFile(message.payload.url)
   }
 
   // Scan the file using ClamAV
-  const [isZipBomb, errorCode, errorMessage] = helper.isZipBomb(downloadedFile);
+  const [isZipBomb, errorCode, errorMessage] = helper.isZipBomb(downloadedFile)
   if (isZipBomb) {
-    message.payload.isInfected = true;
+    message.payload.isInfected = true
     logger.warn(
       `File at ${message.payload.url} is a ZipBomb. ${errorCode}: ${errorMessage}`
-    );
-    helper.postToBusAPI(message);
-    return message;
+    )
+    await helper.postToBusAPI(message)
+    return message
   }
 
-  const isInfected = await helper.scanWithClamAV(downloadedFile);
+  const isInfected = await helper.scanWithClamAV(downloadedFile)
 
   // Update Scanning results
-  message.payload.isInfected = isInfected;
+  message.payload.isInfected = isInfected
 
-  const uploadType = message.payload.uploadType;
-  let destinationBucket = config.uploadTypes[uploadType].cleanBucket;
-  const fileName = message.payload.fileName;
- 
+  const uploadType = message.payload.uploadType
+  const destinationBucket = config.uploadTypes[uploadType].cleanBucket
+  const fileName = message.payload.fileName
+
   // Check if the file is clean or infected
   if (!isInfected) {
     // If the file is clean, move it to the clean bucket based on the upload type
-    yield helper.moveFile(config.get('aws.DMZ_BUCKET'), fileName, destinationBucket, fileName);  
+    await helper.moveFile(config.get('aws.DMZ_BUCKET'), fileName, destinationBucket, fileName)
     const movedS3Obj = `https://s3.amazonaws.com/${destinationBucket}/${fileName}`
     logger.debug(`moved file: ${JSON.stringify(movedS3Obj)}`)
-    if(uploadType === "submission"){
-        logger.info('Update Submission final location using Submission API')
-        yield helper.reqToSubmissionAPI('PATCH', `${config.SUBMISSION_API_URL}/submissions/${message.payload.submissionId}`,
-            { url: movedS3Obj })
+    if (uploadType === 'submission') {
+      logger.info('Update Submission final location using Submission API')
+      await helper.reqToSubmissionAPI('PATCH', `${config.SUBMISSION_API_URL}/submissions/${message.payload.submissionId}`,
+        { url: movedS3Obj })
 
-        logger.info('Create review using Submission API')
-        yield helper.reqToSubmissionAPI('POST', `${config.SUBMISSION_API_URL}/reviews`, {
-            score: message.payload.isInfected ? 0 : 100,
-            reviewerId: uuid(), 
-            submissionId: message.payload.submissionId,
-            scoreCardId: REVIEW_SCORECARDID,
-            typeId: yield helper.getreviewTypeId(AV_SCAN)
-        })
+      logger.info('Create review using Submission API')
+      await helper.reqToSubmissionAPI('POST', `${config.SUBMISSION_API_URL}/reviews`, {
+        score: message.payload.isInfected ? 0 : 100,
+        reviewerId: uuid(),
+        submissionId: message.payload.submissionId,
+        scoreCardId: config.SCORECARD_ID,
+        typeId: await helper.getreviewTypeId(config.AV_SCAN)
+      })
     }
-  }else{
-    // If the file is infected, move it to the quarantine bucket 
-    const quarantineBucket = config.uploadTypes[uploadType].quarantineBucket;
-    yield helper.moveFile(config.get('aws.DMZ_BUCKET'), fileName, quarantineBucket, fileName);
+  } else {
+    // If the file is infected, move it to the quarantine bucket
+    const quarantineBucket = config.uploadTypes[uploadType].quarantineBucket
+    await helper.moveFile(config.get('aws.DMZ_BUCKET'), fileName, quarantineBucket, fileName)
   }
-  
-  helper.postToBusAPI(message);
 
-  return message;
+  await helper.postToBusAPI(message)
+
+  return message
 }
 
 processScan.schema = {
@@ -75,13 +77,13 @@ processScan.schema = {
       topic: Joi.string().required(),
       originator: Joi.string().required(),
       timestamp: Joi.date().required(),
-      "mime-type": Joi.string().required(),
+      'mime-type': Joi.string().required(),
       payload: Joi.object()
         .keys({
-          submissionId: Joi.when("uploadType", {
-            is: Joi.string().valid("submission"),
+          submissionId: Joi.when('uploadType', {
+            is: Joi.string().valid('Submission'),
             then: Joi.string().required(),
-            otherwise: Joi.string().optional(),
+            otherwise: Joi.string().optional()
           }),
           url: Joi.string().required(),
           fileName: Joi.string().required(),
@@ -89,14 +91,14 @@ processScan.schema = {
           uploadType: Joi.string().required()
         })
         .unknown(true)
-        .required(),
+        .required()
     })
-    .required(),
-};
+    .required()
+}
 
 // Exports
 module.exports = {
-  processScan,
-};
+  processScan
+}
 
-logger.buildService(module.exports, "ScannerService");
+logger.buildService(module.exports, 'ScannerService')
