@@ -1,7 +1,7 @@
 FROM node:18.14.1-alpine3.17 as ts-compile
 WORKDIR /usr/file-scanner-service
 COPY . ./
-RUN yarn install --frozen-lockfile --production=false
+RUN npm install
 
 FROM gcr.io/distroless/nodejs:18
 WORKDIR /usr/file-scanner-service
